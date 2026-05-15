@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="80dp"
+    android:height="80dp"
+    android:viewportWidth="80"
+    android:viewportHeight="80">
+    <!-- 圆形背景 -->
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M40,4C20.1,4 4,20.1 4,40s16.1,36 36,36 36,-16.1 36,-36 -16.1,-36 -36,-36z" />
+    <!-- 人物轮廓头部 -->
+    <path
+        android:fillColor="#BDBDBD"
+        android:pathData="M40,28c-4.4,0 -8,3.6 -8,8s3.6,8 8,8 8,-3.6 8,-8 -3.6,-8 -8,-8z" />
+    <!-- 人物轮廓身体 -->
+    <path
+        android:fillColor="#BDBDBD"
+        android:pathData="M24,56c0,-6.6 7.2,-12 16,-12s16,5.4 16,12" />
+</vector>

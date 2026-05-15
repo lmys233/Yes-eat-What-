@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#666666">
+    <!-- 炒锅图标 - 半圆 + 手柄 -->
+    <path
+        android:fillColor="#666666"
+        android:pathData="M2,12a10,10 0,1 1,20 0z" />
+    <path
+        android:strokeWidth="2"
+        android:strokeColor="#666666"
+        android:fillColor="#00000000"
+        android:pathData="M20,10 L23,7" />
+</vector>

@@ -1,0 +1,65 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.lotlimys.yeseatwhat'
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.lotlimys.yeseatwhat"
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.navigation.fragment
+    implementation libs.recyclerview
+    implementation libs.constraintlayout
+
+    // Room
+    implementation libs.room.runtime
+    annotationProcessor libs.room.compiler
+
+    // OkHttp + Gson
+    implementation libs.okhttp
+    implementation libs.gson
+
+    // DashScope SDK (阿里云通义千问)
+    implementation libs.dashscope.sdk
+
+    // Glide
+    implementation libs.glide
+    annotationProcessor libs.glide.compiler
+
+    // Lifecycle
+    implementation libs.lifecycle.viewmodel
+    implementation libs.lifecycle.livedata
+    implementation libs.lifecycle.common
+
+    testImplementation libs.junit
+    androidTestImplementation libs.espresso.core
+    androidTestImplementation libs.ext.junit
+}

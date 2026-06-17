@@ -56,8 +56,10 @@ public class IngredientRepository {
                 }
                 List<CustomIngredient> customIngredients = ingredientDao.getCustomByCategory(category.getId());
                 for (CustomIngredient ci : customIngredients) {
-                    items.add(new IngredientItem(ci.getId(), ci.getName(), ci.getIcon(),
-                            ci.getCategoryId(), category.getName(), false, true));
+                    IngredientItem customItem = new IngredientItem(ci.getId(), ci.getName(), ci.getIcon(),
+                            ci.getCategoryId(), category.getName(), false, true);
+                    customItem.setImagePath(ci.getIcon());
+                    items.add(customItem);
                 }
             }
             result.postValue(items);
@@ -79,5 +81,9 @@ public class IngredientRepository {
 
     public void deleteIngredient(CustomIngredient ingredient) {
         executor.execute(() -> ingredientDao.deleteCustom(ingredient));
+    }
+
+    public void deleteIngredientByName(String name) {
+        executor.execute(() -> ingredientDao.deleteCustomByName(name));
     }
 }

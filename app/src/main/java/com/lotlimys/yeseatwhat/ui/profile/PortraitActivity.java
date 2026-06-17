@@ -1,8 +1,11 @@
 package com.lotlimys.yeseatwhat.ui.profile;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -35,6 +38,7 @@ public class PortraitActivity extends AppCompatActivity {
     private TextView tvContent, tvTime, tvRegenHint, tvError;
     private LinearLayout llLoading, llError;
     private Button btnRetry, btnRefresh;
+    private EditText etDietGoal;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -67,6 +71,20 @@ public class PortraitActivity extends AppCompatActivity {
 
         btnRetry.setOnClickListener(v -> generatePortrait());
         btnRefresh.setOnClickListener(v -> generatePortrait());
+
+        // Diet goal
+        etDietGoal = findViewById(R.id.et_diet_goal);
+        String savedGoal = appPrefs.getDietGoal();
+        if (!savedGoal.isEmpty()) {
+            etDietGoal.setText(savedGoal);
+        }
+        etDietGoal.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                appPrefs.setDietGoal(s.toString());
+            }
+        });
 
         // Check if we should regenerate or show cached
         long lastGenerated = appPrefs.getPortraitGeneratedAt();

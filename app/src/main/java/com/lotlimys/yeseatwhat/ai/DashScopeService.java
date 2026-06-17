@@ -1,5 +1,7 @@
 package com.lotlimys.yeseatwhat.ai;
 
+import android.util.Log;
+
 import com.alibaba.dashscope.aigc.generation.Generation;
 import com.alibaba.dashscope.aigc.generation.GenerationParam;
 import com.alibaba.dashscope.aigc.generation.GenerationResult;
@@ -7,25 +9,48 @@ import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
 import com.lotlimys.yeseatwhat.data.preference.AppPreferences;
 import com.lotlimys.yeseatwhat.model.RecipeItem;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
+ * 使用阿里云 DashScope SDK 调用通义千问 AI 服务。
  * 使用阿里云 DashScope SDK 调用通义千问 AI 服务。
  * 仅在用户选择阿里云 Qwen 供应商时使用。
  */
 public class DashScopeService implements AIService {
 
+    private static final MediaType JSON = MediaType.get("application/json");
+    private static final String IMAGE_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis";
+    private static final String IMAGE_QUERY_URL = "https://dashscope.aliyuncs.com/api/v1/tasks";
+    private static final String IMAGE_MODEL = "qwen-image-plus";
+
     private final AppPreferences preferences;
     private final Gson gson;
+    private final OkHttpClient imageClient;
 
     public DashScopeService(AppPreferences preferences) {
         this.preferences = preferences;
         this.gson = new GsonBuilder().create();
+        this.imageClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
     }
 
     @Override
@@ -43,8 +68,178 @@ public class DashScopeService implements AIService {
     }
 
     @Override
-    public void generateRecipeImage(String dishName, Callback<String> callback) {
-        callback.onError("DashScope SDK 暂不支持图片生成");
+    public void generateRecipeImage(RecipeItem recipe, Callback<String> callback) {
+        new Thread(() -> {
+            try {
+                String prompt = buildImagePrompt(recipe);
+                Log.d("DashScopeImg", "提示词:\n" + prompt);
+                String imageUrl = callImageGeneration(prompt);
+                Log.d("DashScopeImg", "返回URL: " + imageUrl);
+                callback.onSuccess(imageUrl);
+            } catch (Exception e) {
+                Log.e("DashScopeImg", "生成失败", e);
+                callback.onError("图片生成失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private String buildImagePrompt(RecipeItem recipe) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("生成像素风格").append(recipe.getName()).append("图片\n");
+
+        if (recipe.getIngredients() != null && !recipe.getIngredients().isEmpty()) {
+            sb.append("食材：");
+            for (int i = 0; i < recipe.getIngredients().size(); i++) {
+                if (i > 0) sb.append("、");
+                RecipeItem.IngredientAmount ing = recipe.getIngredients().get(i);
+                sb.append(ing.getName());
+                if (ing.getAmount() != null && !ing.getAmount().isEmpty()) {
+                    sb.append("(").append(ing.getAmount()).append(")");
+                }
+            }
+            sb.append("\n");
+        }
+
+        if (recipe.getCookingMethod() != null && !recipe.getCookingMethod().isEmpty()) {
+            sb.append("烹饪方式：").append(recipe.getCookingMethod()).append("\n");
+        }
+
+        sb.append("不要高清逼真、拉高像素颗粒感\n")
+                .append("大幅降低分辨率、减少总像素点数量（指定像素点 2000 个）\n")
+                .append("背景：纯白色背景\n")
+                .append("画风要求：泰拉瑞亚物品风格（复古低像素、游戏道具风、极简方块像素，不写实）");
+
+        return sb.toString();
+    }
+
+    private String callImageGeneration(String prompt) throws Exception {
+        String apiKey = preferences.getApiKey();
+
+        // Step 1: 创建异步任务获取 task_id
+        String taskId = createAsyncTask(prompt, apiKey);
+
+        // Step 2: 轮询任务结果
+        return pollTaskResult(taskId, apiKey);
+    }
+
+    /**
+     * 创建异步图片生成任务，返回 task_id。
+     * 文档: POST https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis
+     */
+    private String createAsyncTask(String prompt, String apiKey) throws Exception {
+        int maxRetries = 3;
+        int retryDelay = 5000;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            JsonObject body = new JsonObject();
+            body.addProperty("model", IMAGE_MODEL);
+
+            JsonObject input = new JsonObject();
+            input.addProperty("prompt", prompt);
+            body.add("input", input);
+
+            JsonObject parameters = new JsonObject();
+            parameters.addProperty("size", "1024*1024");
+            parameters.addProperty("n", 1);
+            parameters.addProperty("prompt_extend", false);
+            parameters.addProperty("watermark", false);
+            body.add("parameters", parameters);
+
+            String json = gson.toJson(body);
+            Log.d("DashScopeImg", ">> 请求URL: " + IMAGE_API_URL);
+            Log.d("DashScopeImg", ">> 请求body: " + json);
+
+            Request httpRequest = new Request.Builder()
+                    .url(IMAGE_API_URL)
+                    .post(RequestBody.create(json, JSON))
+                    .addHeader("X-DashScope-Async", "enable")
+                    .addHeader("Authorization", "Bearer " + apiKey)
+                    .addHeader("Content-Type", "application/json")
+                    .build();
+
+            try (Response response = imageClient.newCall(httpRequest).execute()) {
+                Log.d("DashScopeImg", "<< 响应code: " + response.code());
+                if (response.code() == 429) {
+                    String errBody = response.body() != null ? response.body().string() : "";
+                    Log.w("DashScopeImg", "[" + attempt + "/" + maxRetries + "] 429限流: " + errBody);
+                    if (attempt < maxRetries) {
+                        Log.d("DashScopeImg", "等待 " + retryDelay + "ms 后重试创建任务...");
+                        try { Thread.sleep(retryDelay); } catch (InterruptedException ignored) {}
+                        retryDelay *= 2;
+                        continue;
+                    } else {
+                        throw new IOException("图片生成限流，已重试" + maxRetries + "次仍失败: " + errBody);
+                    }
+                }
+                if (!response.isSuccessful()) {
+                    String errBody = response.body() != null ? response.body().string() : "";
+                    Log.e("DashScopeImg", "HTTP " + response.code() + ": " + errBody);
+                    throw new IOException("创建图片任务失败: " + response.code() + " " + errBody);
+                }
+                String respBody = response.body().string();
+                Log.d("DashScopeImg", "创建任务响应: " + respBody);
+                JsonObject resp = gson.fromJson(respBody, JsonObject.class);
+                JsonObject output = resp.getAsJsonObject("output");
+                String taskId = output.get("task_id").getAsString();
+                String taskStatus = output.get("task_status").getAsString();
+                Log.d("DashScopeImg", "任务已创建: " + taskId + " 状态: " + taskStatus);
+                return taskId;
+            }
+        }
+        throw new IOException("图片生成任务创建失败");
+    }
+
+    /**
+     * 根据 task_id 轮询图片生成结果。
+     * 文档: GET https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}
+     */
+    private String pollTaskResult(String taskId, String apiKey) throws Exception {
+        String url = IMAGE_QUERY_URL + "/" + taskId;
+        long pollInterval = 2000;
+        int maxPolls = 90; // 最长等待 3 分钟
+
+        for (int i = 0; i < maxPolls; i++) {
+            Request request = new Request.Builder()
+                    .url(url)
+                    .get()
+                    .addHeader("Authorization", "Bearer " + apiKey)
+                    .build();
+
+            try (Response response = imageClient.newCall(request).execute()) {
+                Log.d("DashScopeImg", "<< 轮询响应 code=" + response.code());
+                if (!response.isSuccessful()) {
+                    String errBody = response.body() != null ? response.body().string() : "";
+                    Log.e("DashScopeImg", "轮询失败 HTTP " + response.code() + " body=" + errBody);
+                    throw new IOException("查询任务状态失败: " + response.code());
+                }
+                String respBody = response.body().string();
+                JsonObject resp = gson.fromJson(respBody, JsonObject.class);
+                JsonObject output = resp.getAsJsonObject("output");
+                String status = output.get("task_status").getAsString();
+
+                Log.d("DashScopeImg", "轮询 [" + (i + 1) + "] task_id=" + taskId + " status=" + status);
+
+                if ("SUCCEEDED".equals(status)) {
+                    if (output.has("results")) {
+                        JsonArray results = output.getAsJsonArray("results");
+                        if (results.size() > 0) {
+                            String imageUrl = results.get(0).getAsJsonObject().get("url").getAsString();
+                            Log.d("DashScopeImg", "生成成功 URL: " + imageUrl);
+                            return imageUrl;
+                        }
+                    }
+                    throw new IOException("任务成功但未找到图片URL");
+                } else if ("FAILED".equals(status)) {
+                    String message = output.has("message") ? output.get("message").getAsString() : "未知错误";
+                    throw new IOException("图片生成失败: " + message);
+                } else if ("CANCELED".equals(status)) {
+                    throw new IOException("图片生成任务已取消");
+                }
+                // PENDING 或 RUNNING - 继续轮询
+                Thread.sleep(pollInterval);
+            }
+        }
+        throw new IOException("图片生成超时（3分钟）");
     }
 
     @Override
@@ -120,6 +315,29 @@ public class DashScopeService implements AIService {
                 callback.onSuccess(content);
             } catch (Exception e) {
                 callback.onError("请求失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    @Override
+    public void generateIngredientImage(String ingredientName, String categoryName, Callback<String> callback) {
+        new Thread(() -> {
+            try {
+                String prompt = "生成像素风格" + ingredientName + "的单一图标\n"
+                        + "分类：" + (categoryName != null ? categoryName : "") + "\n"
+                        + "不要高清逼真、拉高像素颗粒感\n"
+                        + "大幅降低分辨率、减少总像素点数量\n"
+                        + "背景必须是纯白色#FFFFFF，不允许有任何阴影、渐变、黑边或黑框\n"
+                        + "食材周围绝对不能有黑色轮廓线或暗色描边\n"
+                        + "画风要求：泰拉瑞亚物品风格（复古低像素、游戏道具风、极简方块像素、不写实）\n"
+                        + "单个物品图标居中展示，不要多余的装饰文字或图案\n"
+                        + "重要：图标边缘和背景之间必须完全平滑过渡，没有任何暗色边框";
+                Log.d("DashScopeImg", "食材图标提示词: " + ingredientName + "(" + categoryName + ")");
+                String imageUrl = callImageGeneration(prompt);
+                callback.onSuccess(imageUrl);
+            } catch (Exception e) {
+                Log.e("DashScopeImg", "食材图标生成失败: " + ingredientName, e);
+                callback.onError("食材图标生成失败: " + e.getMessage());
             }
         }).start();
     }
@@ -204,6 +422,14 @@ public class DashScopeService implements AIService {
         }
         sb.append("要求：优先推荐有群众基础的知名菜品。如果用户选材组合确实没有足够的知名菜品，")
                 .append("允许末尾补充少量合理的创新搭配，但主体必须是真实存在的菜品。");
+
+        // Diet goal
+        if (request.getDietGoal() != null && !request.getDietGoal().isEmpty()) {
+            sb.append("\n\n## 用户的饮食改变目标\n")
+                    .append(request.getDietGoal())
+                    .append("\n请优先推荐符合这个目标的菜品，帮助用户达成饮食改变计划。");
+        }
+
         return sb.toString();
     }
 

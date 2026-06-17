@@ -7,13 +7,15 @@ import java.util.List;
 public interface AIService {
     void generateRecipes(RecipeRequest request, Callback<RecipeResponse> callback);
 
-    void generateRecipeImage(String dishName, Callback<String> callback);
+    void generateRecipeImage(RecipeItem recipe, Callback<String> callback);
 
     void generateRegionRecommendation(String region, Callback<List<RecipeItem>> callback);
 
     void generateRandomDishes(List<Integer> ingredientIds, Callback<List<RecipeItem>> callback);
 
     void generatePortrait(PortraitRequest request, Callback<String> callback);
+
+    void generateIngredientImage(String ingredientName, String categoryName, Callback<String> callback);
 
     interface Callback<T> {
         void onSuccess(T result);

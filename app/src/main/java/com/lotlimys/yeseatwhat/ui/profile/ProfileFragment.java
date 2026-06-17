@@ -36,12 +36,14 @@ public class ProfileFragment extends Fragment {
     private TextView tvDescription;
     private String currentTheme = "";
 
-    private final ActivityResultLauncher<String> imagePickerLauncher =
-            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
-                if (uri != null) {
-                    saveAvatar(uri);
-                }
-            });
+    private final ActivityResultLauncher<Intent> imagePickerLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getData() != null && result.getData().getData() != null) {
+                            saveAvatar(result.getData().getData());
+                        }
+                    });
 
     private final ActivityResultLauncher<Intent> settingsLauncher =
             registerForActivityResult(
@@ -76,7 +78,10 @@ public class ProfileFragment extends Fragment {
 
         // Long press avatar to change
         ivAvatar.setOnLongClickListener(v -> {
-            imagePickerLauncher.launch("image/*");
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            imagePickerLauncher.launch(intent);
             return true;
         });
 

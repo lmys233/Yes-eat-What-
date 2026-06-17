@@ -135,6 +135,45 @@
                 android:textSize="12sp"
                 android:textColor="#BBBBBB" />
 
+            <!-- Diet Goal Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:contentPadding="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="做出改变"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/black" />
+
+                    <EditText
+                        android:id="@+id/et_diet_goal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="48dp"
+                        android:background="#FFF0F0F0"
+                        android:padding="12dp"
+                        android:textSize="14sp"
+                        android:textColor="#444444"
+                        android:hint="你的饮食目标"
+                        android:textColorHint="#BBBBBB"
+                        android:gravity="top|start"
+                        android:maxLines="3" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
         </LinearLayout>
     </ScrollView>
 

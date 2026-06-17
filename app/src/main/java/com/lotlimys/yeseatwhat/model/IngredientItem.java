@@ -8,6 +8,7 @@ public class IngredientItem implements SelectableItem {
     private String categoryName;
     private boolean isSelected;
     private boolean isCustom;
+    private String imagePath;
 
     public IngredientItem(int id, String name, String icon, int categoryId,
                           String categoryName, boolean isSelected, boolean isCustom) {
@@ -34,6 +35,8 @@ public class IngredientItem implements SelectableItem {
     public void setSelected(boolean selected) { isSelected = selected; }
     public boolean isCustom() { return isCustom; }
     public void setCustom(boolean custom) { isCustom = custom; }
+    public String getImagePath() { return imagePath; }
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
     @Override
     public String getCategoryType() { return "ingredient"; }
 }

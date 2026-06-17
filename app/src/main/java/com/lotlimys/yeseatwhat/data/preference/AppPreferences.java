@@ -102,4 +102,12 @@ public class AppPreferences {
     public void setPortraitGeneratedAt(long time) {
         prefs.edit().putLong(Constants.KEY_PORTRAIT_GENERATED_AT, time).apply();
     }
+
+    public String getDietGoal() {
+        return prefs.getString(Constants.KEY_DIET_GOAL, "");
+    }
+
+    public void setDietGoal(String goal) {
+        prefs.edit().putString(Constants.KEY_DIET_GOAL, goal).apply();
+    }
 }

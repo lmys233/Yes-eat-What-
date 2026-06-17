@@ -1,46 +1,62 @@
 package com.lotlimys.yeseatwhat.ui.order;
 
-import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.gson.Gson;
 import com.lotlimys.yeseatwhat.R;
 import com.lotlimys.yeseatwhat.adapter.IngredientAdapter;
 import com.lotlimys.yeseatwhat.ai.AIService;
+import com.lotlimys.yeseatwhat.ai.DashScopeService;
 import com.lotlimys.yeseatwhat.ai.OpenAIService;
 import com.lotlimys.yeseatwhat.ai.RecipeRequest;
 import com.lotlimys.yeseatwhat.ai.RecipeResponse;
-import com.lotlimys.yeseatwhat.data.repository.IngredientRepository;
-import com.lotlimys.yeseatwhat.data.repository.RecipeRepository;
 import com.lotlimys.yeseatwhat.data.db.AppDatabase;
+import com.lotlimys.yeseatwhat.data.db.entity.Category;
+import com.lotlimys.yeseatwhat.data.db.entity.CustomIngredient;
 import com.lotlimys.yeseatwhat.data.db.entity.GenerationRecord;
 import com.lotlimys.yeseatwhat.data.preference.AppPreferences;
+import com.lotlimys.yeseatwhat.data.repository.IngredientRepository;
+import com.lotlimys.yeseatwhat.data.repository.RecipeRepository;
 import com.lotlimys.yeseatwhat.model.CategoryItem;
 import com.lotlimys.yeseatwhat.model.CuisineItem;
 import com.lotlimys.yeseatwhat.model.IngredientItem;
 import com.lotlimys.yeseatwhat.model.SelectableItem;
+import com.lotlimys.yeseatwhat.ui.detail.RecipeDetailActivity;
+import com.lotlimys.yeseatwhat.util.Constants;
+import com.lotlimys.yeseatwhat.util.IngredientImageHelper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 public class OrderFragment extends Fragment {
 
@@ -120,6 +136,8 @@ public class OrderFragment extends Fragment {
         loadData();
 
         btnGenerate.setOnClickListener(v -> showPreferencesDialog());
+
+        setupOverflowMenu(view);
 
         return view;
     }
@@ -387,6 +405,8 @@ public class OrderFragment extends Fragment {
 
     private void filterByCategory(int categoryId) {
         List<IngredientItem> filtered = new ArrayList<>();
+        // 第一个位置为加号按钮（id=0）
+        filtered.add(new IngredientItem(0, "+", "", -1, "", false, false));
         for (IngredientItem item : allIngredients) {
             if (categoryId == -1 || item.getCategoryId() == categoryId) {
                 filtered.add(item);
@@ -398,6 +418,12 @@ public class OrderFragment extends Fragment {
     // ===== Item Click =====
 
     private void onItemClick(SelectableItem item, int position) {
+        // 加号按钮点击 -> 添加自定义食材
+        if ("ingredient".equals(item.getCategoryType()) && item.getId() == 0) {
+            showAddCustomIngredientDialog();
+            return;
+        }
+
         switch (currentMode) {
             case INGREDIENT:
                 item.setSelected(!item.isSelected());
@@ -428,6 +454,355 @@ public class OrderFragment extends Fragment {
             if (item.isSelected()) count++;
         }
         tvSelectedCount.setText("已选 " + count);
+    }
+
+    // ===== Overflow PopupMenu =====
+
+    private void setupOverflowMenu(View rootView) {
+        ImageButton btnOverflow = rootView.findViewById(R.id.btn_overflow);
+        btnOverflow.setOnClickListener(v -> {
+            PopupMenu popup = new PopupMenu(requireContext(), v);
+            popup.setGravity(android.view.Gravity.END);
+            popup.getMenuInflater().inflate(R.menu.menu_overflow, popup.getMenu());
+            popup.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == R.id.action_delete) {
+                    showDeleteCustomIngredientDialog();
+                    return true;
+                }
+                return false;
+            });
+            popup.show();
+        });
+    }
+
+    private void showDeleteCustomIngredientDialog() {
+        List<IngredientItem> customItems = new ArrayList<>();
+        for (IngredientItem item : allIngredients) {
+            if (item.isCustom()) {
+                customItems.add(item);
+            }
+        }
+
+        if (customItems.isEmpty()) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("提示")
+                    .setMessage("暂无自定义食材")
+                    .setPositiveButton("确定", null)
+                    .show();
+            return;
+        }
+
+        String[] names = new String[customItems.size()];
+        for (int i = 0; i < customItems.size(); i++) {
+            names[i] = customItems.get(i).getName();
+        }
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("选择要删除的食材")
+                .setItems(names, (dialog, which) -> {
+                    IngredientItem target = customItems.get(which);
+                    confirmDeleteCustomIngredient(target);
+                })
+                .setPositiveButton("取消", null)
+                .show();
+    }
+
+    private void confirmDeleteCustomIngredient(IngredientItem target) {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("确认删除")
+                .setMessage("确定要删除自定义食材「" + target.getName() + "」吗？")
+                .setPositiveButton("删除", (dialog, which) -> {
+                    // 按名称从数据库删除
+                    ingredientRepository.deleteIngredientByName(target.getName());
+                    // 从内存列表删除
+                    allIngredients.remove(target);
+                    filterByCategory(selectedCategoryId);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // ===== Add Custom Ingredient =====
+
+    private void showAddCustomIngredientDialog() {
+        List<CategoryItem> catList = new ArrayList<>(categories);
+        float density = getResources().getDisplayMetrics().density;
+        int p8 = (int) (8 * density);
+        int p16 = (int) (16 * density);
+
+        LinearLayout layout = new LinearLayout(requireContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(p16, p8, p16, p8);
+
+        // === Image preview + generate button ===
+        LinearLayout imageArea = new LinearLayout(requireContext());
+        imageArea.setOrientation(LinearLayout.HORIZONTAL);
+        imageArea.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        ImageView ivPreview = new ImageView(requireContext());
+        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(
+                (int) (100 * density), (int) (100 * density));
+        previewLp.setMarginEnd(p16);
+        ivPreview.setLayoutParams(previewLp);
+        ivPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        ivPreview.setImageResource(R.drawable.apic);
+        ivPreview.setBackgroundColor(android.graphics.Color.parseColor("#FFF0F0F0"));
+        imageArea.addView(ivPreview);
+
+        Button btnGenerate = new Button(requireContext());
+        btnGenerate.setText("生成图片");
+        btnGenerate.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        imageArea.addView(btnGenerate);
+
+        layout.addView(imageArea);
+
+        // Spacer
+        View spacer1 = new View(requireContext());
+        spacer1.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, p16));
+        layout.addView(spacer1);
+
+        // 分类标签
+        TextView tvCatLabel = new TextView(requireContext());
+        tvCatLabel.setText("分类：");
+        tvCatLabel.setTextSize(14);
+        layout.addView(tvCatLabel);
+
+        // 分类下拉
+        Spinner spinner = new Spinner(requireContext());
+        List<String> spinnerItems = new ArrayList<>();
+        for (CategoryItem cat : catList) {
+            spinnerItems.add(cat.getName());
+        }
+        spinnerItems.add("+ 新增分类");
+
+        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, spinnerItems);
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(spinnerAdapter);
+        layout.addView(spinner);
+
+        // Spacer
+        View spacer2 = new View(requireContext());
+        spacer2.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, p16));
+        layout.addView(spacer2);
+
+        // 食材名字标签
+        TextView tvNameLabel = new TextView(requireContext());
+        tvNameLabel.setText("食材名字：");
+        tvNameLabel.setTextSize(14);
+        layout.addView(tvNameLabel);
+
+        // 食材名字输入
+        EditText etName = new EditText(requireContext());
+        etName.setHint("输入食材名称");
+        etName.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        layout.addView(etName);
+
+        // 处理 "+ 新增分类" 选择
+        final boolean[] initGuard = {true};
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+                if (initGuard[0]) {
+                    initGuard[0] = false;
+                    return;
+                }
+                if (pos == spinnerItems.size() - 1) {
+                    showNewCategoryDialog(catList, spinnerItems, spinnerAdapter, spinner);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        // === Track generated image path ===
+        final String[] generatedImagePath = {null};
+
+        // === Generate image button handler ===
+        btnGenerate.setOnClickListener(v -> {
+            String name = etName.getText().toString().trim();
+            int pos = spinner.getSelectedItemPosition();
+            if (pos < 0 || pos >= catList.size()) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("提示")
+                        .setMessage("请先选择分类")
+                        .setPositiveButton("确定", null)
+                        .show();
+                return;
+            }
+            if (name.isEmpty()) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("提示")
+                        .setMessage("请先输入食材名称")
+                        .setPositiveButton("确定", null)
+                        .show();
+                return;
+            }
+
+            CategoryItem selectedCat = catList.get(pos);
+            AppPreferences prefs = AppPreferences.getInstance(requireContext());
+            String apiKey = prefs.getApiKey();
+            String aiProvider = prefs.getAiProvider();
+            if (apiKey.isEmpty() || aiProvider.isEmpty()) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("提示")
+                        .setMessage("请先在个人页-设置中配置 AI 供应商和 API Key")
+                        .setPositiveButton("确定", null)
+                        .show();
+                return;
+            }
+
+            AlertDialog loadingDialog = new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("正在生成图片")
+                    .setMessage("AI 正在为「" + name + "」生成食材图标...")
+                    .setCancelable(false)
+                    .show();
+
+            Log.d("IngredientImg", "AI供应商: " + aiProvider + ", API Key前8位: "
+                    + (apiKey.length() > 8 ? apiKey.substring(0, 8) : apiKey) + "...");
+            Log.d("IngredientImg", "生成食材图标: name=" + name + ", category=" + selectedCat.getName());
+
+            AIService aiService = Constants.PROVIDER_QWEN.equals(aiProvider)
+                    ? new DashScopeService(prefs)
+                    : new OpenAIService(prefs);
+
+            aiService.generateIngredientImage(name, selectedCat.getName(),
+                    new AIService.Callback<String>() {
+                        @Override
+                        public void onSuccess(String imageUrl) {
+                            Log.d("IngredientImg", "图片生成成功, URL: " + imageUrl);
+                            if (!isAdded()) return;
+                            // onSuccess 运行在后台线程，在这里进行网络下载
+                            IngredientImageHelper imageHelper =
+                                    new IngredientImageHelper(requireContext());
+                            String localPath =
+                                    imageHelper.saveImageFromUrl(imageUrl);
+                            if (!isAdded()) return;
+                            requireActivity().runOnUiThread(() -> {
+                                loadingDialog.dismiss();
+                                if (localPath != null) {
+                                    generatedImagePath[0] = localPath;
+                                    Glide.with(requireContext())
+                                            .load(localPath)
+                                            .placeholder(R.drawable.apic)
+                                            .into(ivPreview);
+                                } else {
+                                    ivPreview.setImageResource(R.drawable.apic);
+                                    new MaterialAlertDialogBuilder(requireContext())
+                                            .setTitle("提示")
+                                            .setMessage("图片已生成但保存失败，将使用默认图标")
+                                            .setPositiveButton("确定", null)
+                                            .show();
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onError(String errorMessage) {
+                            Log.e("IngredientImg", "图片生成失败: " + errorMessage);
+                            requireActivity().runOnUiThread(() -> {
+                                loadingDialog.dismiss();
+                                new MaterialAlertDialogBuilder(requireContext())
+                                        .setTitle("生成失败")
+                                        .setMessage(errorMessage)
+                                        .setPositiveButton("确定", null)
+                                        .show();
+                            });
+                        }
+                    });
+        });
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("没有想要的食材，自己添加吧")
+                .setView(layout)
+                .setPositiveButton("确认添加", (dialog, which) -> {
+                    int pos = spinner.getSelectedItemPosition();
+                    if (pos < 0 || pos >= catList.size()) return;
+                    String name = etName.getText().toString().trim();
+                    if (name.isEmpty()) return;
+
+                    // 检查食材名称是否已存在
+                    for (IngredientItem existing : allIngredients) {
+                        if (existing.getName().equals(name)) {
+                            new MaterialAlertDialogBuilder(requireContext())
+                                    .setTitle("提示")
+                                    .setMessage("食材\"" + name + "\"已存在")
+                                    .setPositiveButton("确定", null)
+                                    .show();
+                            return;
+                        }
+                    }
+
+                    CategoryItem selectedCat = catList.get(pos);
+                    int catId = selectedCat.getId();
+                    String catName = selectedCat.getName();
+
+                    // 如果分类是新创建的（负 ID），持久化到 DB
+                    if (catId < 0) {
+                        catId = 100 + Math.abs(catId);
+                        Category category = new Category(catId, catName, "", "CUSTOM", 100);
+                        ingredientRepository.addCategory(category);
+                    }
+
+                    // 持久化食材到 DB（包含图片路径）
+                    long now = System.currentTimeMillis();
+                    String iconPath = generatedImagePath[0] != null
+                            ? generatedImagePath[0] : "";
+                    CustomIngredient customIngredient =
+                            new CustomIngredient(name, iconPath, catId, now);
+                    ingredientRepository.addIngredient(customIngredient);
+
+                    // 立即更新内存列表
+                    int newId = 1000 + allIngredients.size();
+                    IngredientItem customItem = new IngredientItem(
+                            newId, name, "",
+                            catId, catName, false, true);
+                    customItem.setImagePath(generatedImagePath[0]);
+                    allIngredients.add(customItem);
+                    filterByCategory(selectedCategoryId);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void showNewCategoryDialog(List<CategoryItem> catList, List<String> spinnerItems,
+                                        ArrayAdapter<String> adapter, Spinner spinner) {
+        EditText input = new EditText(requireContext());
+        input.setHint("输入分类名称");
+        float density = getResources().getDisplayMetrics().density;
+        input.setPadding((int) (16 * density), (int) (8 * density), (int) (16 * density), 0);
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("新增分类")
+                .setView(input)
+                .setPositiveButton("确认", (d, w) -> {
+                    String catName = input.getText().toString().trim();
+                    if (catName.isEmpty()) return;
+                    // 检查分类名称是否已存在
+                    for (CategoryItem existing : catList) {
+                        if (existing.getName().equals(catName)) {
+                            new MaterialAlertDialogBuilder(requireContext())
+                                    .setTitle("提示")
+                                    .setMessage("分类\"" + catName + "\"已存在")
+                                    .setPositiveButton("确定", null)
+                                    .show();
+                            return;
+                        }
+                    }
+                    int newCatId = -(catList.size() + 1);
+                    catList.add(new CategoryItem(newCatId, catName, "", ""));
+                    spinnerItems.add(spinnerItems.size() - 1, catName);
+                    adapter.notifyDataSetChanged();
+                    spinner.setSelection(spinnerItems.size() - 2);
+                })
+                .setNegativeButton("取消", (d, w) -> spinner.setSelection(0))
+                .setOnCancelListener(d -> spinner.setSelection(0))
+                .show();
     }
 
     // ===== Preferences Tool Dialog (free-text) =====
@@ -470,7 +845,7 @@ public class OrderFragment extends Fragment {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         layout.addView(etAllergy);
 
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("偏好与忌口设置")
                 .setView(layout)
                 .setPositiveButton("确定", (dialog, which) -> {
@@ -544,7 +919,7 @@ public class OrderFragment extends Fragment {
         root.setPadding(pad16, pad8, pad16, pad8);
 
         // Helper to add a summary row
-        java.util.function.BiConsumer<String, String> addRow = (label, value) -> {
+        BiConsumer<String, String> addRow = (label, value) -> {
             if (value == null || value.isEmpty()) return;
             LinearLayout row = new LinearLayout(requireContext());
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -554,7 +929,7 @@ public class OrderFragment extends Fragment {
             tvLabel.setText(label);
             tvLabel.setTextSize(14);
             tvLabel.setTextColor(getResources().getColor(R.color.purple_700));
-            tvLabel.setTypeface(null, android.graphics.Typeface.BOLD);
+            tvLabel.setTypeface(null, Typeface.BOLD);
 
             TextView tvValue = new TextView(requireContext());
             tvValue.setText(value);
@@ -661,7 +1036,8 @@ public class OrderFragment extends Fragment {
                 selectedDietary, selectedAllergies,
                 new ArrayList<>(), "",
                 selectedCookingMethods,
-                prefBuilder.toString()
+                prefBuilder.toString(),
+                prefs.getDietGoal()
         );
 
         // Save generation record before AI request
@@ -700,7 +1076,7 @@ public class OrderFragment extends Fragment {
         loadingBuilder.setTitle("AI思考中...")
                 .setMessage("正在根据您的食材生成菜品创意...")
                 .setCancelable(false);
-        androidx.appcompat.app.AlertDialog dialog = loadingBuilder.show();
+        AlertDialog dialog = loadingBuilder.show();
 
         long recordId = currentGenerationRecordId;
         recipeRepository.generateRecipes(request, new AIService.Callback<RecipeResponse>() {
@@ -719,9 +1095,9 @@ public class OrderFragment extends Fragment {
                     btnGenerate.setAlpha(1f);
 
                     Intent intent = new Intent(getActivity(),
-                            com.lotlimys.yeseatwhat.ui.detail.RecipeDetailActivity.class);
+                            RecipeDetailActivity.class);
                     intent.putExtra("dishes",
-                            new com.google.gson.Gson().toJson(result.getDishes()));
+                            new Gson().toJson(result.getDishes()));
                     startActivity(intent);
                 });
             }

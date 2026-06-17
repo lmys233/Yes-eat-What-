@@ -2,6 +2,7 @@ package com.lotlimys.yeseatwhat.ui.detail;
 
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,16 +18,29 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.lotlimys.yeseatwhat.App;
 import com.lotlimys.yeseatwhat.R;
+import com.lotlimys.yeseatwhat.ai.AIService;
+import com.lotlimys.yeseatwhat.ai.DashScopeService;
+import com.lotlimys.yeseatwhat.ai.OpenAIService;
+import com.lotlimys.yeseatwhat.data.db.AppDatabase;
+import com.lotlimys.yeseatwhat.data.preference.AppPreferences;
 import com.lotlimys.yeseatwhat.data.repository.HistoryRepository;
 import com.lotlimys.yeseatwhat.model.RecipeItem;
+import com.lotlimys.yeseatwhat.util.Constants;
+import com.lotlimys.yeseatwhat.util.ImageFileManager;
 
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class RecipeDetailActivity extends AppCompatActivity {
 
@@ -35,6 +49,11 @@ public class RecipeDetailActivity extends AppCompatActivity {
     private List<RecipeItem> dishes;
     private Gson gson = new Gson();
     private HistoryRepository historyRepository;
+    private AppPreferences appPrefs;
+    private AIService aiService;
+    private ExecutorService imageExecutor;
+    private RecipeListAdapter adapter;
+    private ImageFileManager imageFileManager;
 
     // Detail views
     private ImageView ivImage;
@@ -44,6 +63,8 @@ public class RecipeDetailActivity extends AppCompatActivity {
     private ImageButton btnFavorite;
     private RecipeItem currentRecipe;
     private boolean isFavorite = false;
+    private boolean directDetail = false;
+    private volatile boolean destroyed = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,6 +73,17 @@ public class RecipeDetailActivity extends AppCompatActivity {
         setContentView(R.layout.activity_recipe_detail);
 
         historyRepository = new HistoryRepository(this);
+
+        // AI service for image generation
+        appPrefs = AppPreferences.getInstance(this);
+        String provider = appPrefs.getAiProvider();
+        if (Constants.PROVIDER_QWEN.equals(provider)) {
+            aiService = new DashScopeService(appPrefs);
+        } else {
+            aiService = new OpenAIService(appPrefs);
+        }
+        imageExecutor = Executors.newSingleThreadExecutor();
+        imageFileManager = new ImageFileManager(this);
 
         // Parse data
         String dishesJson = getIntent().getStringExtra("dishes");
@@ -69,14 +101,28 @@ public class RecipeDetailActivity extends AppCompatActivity {
 
         // Toolbar - detail
         MaterialToolbar toolbarDetail = findViewById(R.id.toolbar_detail);
-        toolbarDetail.setNavigationOnClickListener(v -> viewFlipper.showPrevious());
+        toolbarDetail.setNavigationOnClickListener(v -> {
+            if (directDetail) {
+                finish();
+            } else {
+                viewFlipper.showPrevious();
+            }
+        });
+
+        // 记录是否来自浏览记录/收藏等直接详情入口
+        directDetail = getIntent().getBooleanExtra("direct_detail", false);
 
         // 系统返回键：详情页 → 返回列表；列表页 → 关闭页面
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
                 if (viewFlipper.getDisplayedChild() == 1) {
-                    viewFlipper.showPrevious();
+                    // directDetail 模式：从详情直接结束页面，不回到列表
+                    if (directDetail) {
+                        finish();
+                    } else {
+                        viewFlipper.showPrevious();
+                    }
                 } else {
                     finish();
                 }
@@ -101,7 +147,11 @@ public class RecipeDetailActivity extends AppCompatActivity {
         // Setup list
         if (dishes != null && !dishes.isEmpty()) {
             rvRecipeList.setLayoutManager(new LinearLayoutManager(this));
-            rvRecipeList.setAdapter(new RecipeListAdapter(dishes));
+            adapter = new RecipeListAdapter(dishes);
+            rvRecipeList.setAdapter(adapter);
+
+            // Start parallel image generation for each dish
+            generateAllImages();
 
             // 如果来自浏览记录等直接详情入口，跳过列表直接显示详情
             if (getIntent().getBooleanExtra("direct_detail", false) && dishes.size() == 1) {
@@ -112,6 +162,27 @@ public class RecipeDetailActivity extends AppCompatActivity {
 
     private void showDetail(RecipeItem recipe) {
         this.currentRecipe = recipe;
+
+        // Load image: 优先本地路径，其次 URL，最后占位图
+        String imagePath = recipe.getImagePath();
+        if (imagePath == null || imagePath.isEmpty()) {
+            // 尝试从本地文件加载（DB 中可能只有 URL 或无路径）
+            String localPath = imageFileManager.getLocalPath(recipe.getRecipeKey());
+            if (localPath != null) {
+                imagePath = localPath;
+                recipe.setImagePath(localPath);
+            }
+        }
+        if (imagePath != null && !imagePath.isEmpty()) {
+            Glide.with(this)
+                    .load(imagePath)
+                    .placeholder(R.drawable.apic)
+                    .transition(DrawableTransitionOptions.withCrossFade())
+                    .into(ivImage);
+        } else {
+            ivImage.setImageResource(R.drawable.apic);
+        }
+
         tvName.setText(recipe.getName());
         tvDifficulty.setText("难度: " + recipe.getDifficulty());
         tvTime.setText("时间: " + recipe.getCookingTime() + "分钟");
@@ -162,6 +233,85 @@ public class RecipeDetailActivity extends AppCompatActivity {
         }
 
         viewFlipper.showNext();
+    }
+
+    private void generateAllImages() {
+        if (dishes == null || aiService == null) return;
+        Log.d("RecipeImage", "开始串行生成 " + dishes.size() + " 张菜品图片");
+        imageExecutor.execute(() -> {
+            for (int i = 0; i < dishes.size(); i++) {
+                if (destroyed) {
+                    Log.d("RecipeImage", "Activity已销毁，停止图片生成");
+                    return;
+                }
+                final int index = i;
+                final RecipeItem recipe = dishes.get(i);
+                final CountDownLatch latch = new CountDownLatch(1);
+                try {
+                    Log.d("RecipeImage", "[" + index + "] 开始生成: " + recipe.getName());
+                    aiService.generateRecipeImage(recipe, new AIService.Callback<String>() {
+                        @Override
+                        public void onSuccess(String imageUrl) {
+                            if (destroyed) {
+                                latch.countDown();
+                                return;
+                            }
+                            Log.d("RecipeImage", "[" + index + "] 生成成功: " + recipe.getName() + " -> " + imageUrl);
+                            // 保存图片到本地存储
+                            String localPath = imageFileManager.saveImageFromUrl(imageUrl, recipe.getRecipeKey());
+                            if (localPath != null) {
+                                recipe.setImagePath(localPath);
+                                // 更新数据库中的图片路径（用 applicationContext 避免持有已销毁的 activity）
+                                AppDatabase.getDatabaseWriteExecutor().execute(() ->
+                                    AppDatabase.getInstance(getApplicationContext())
+                                            .recipeDao().updateImagePath(recipe.getRecipeKey(), localPath));
+                                Log.d("RecipeImage", "[" + index + "] 已保存到本地: " + localPath);
+                            } else {
+                                recipe.setImagePath(imageUrl);
+                            }
+                            runOnUiThread(() -> {
+                                if (destroyed) return;
+                                RecyclerView.ViewHolder holder = rvRecipeList.findViewHolderForAdapterPosition(index);
+                                if (holder instanceof RecipeListAdapter.ViewHolder) {
+                                    Glide.with(RecipeDetailActivity.this)
+                                            .load(recipe.getImagePath())
+                                            .placeholder(R.drawable.apic)
+                                            .transition(DrawableTransitionOptions.withCrossFade())
+                                            .into(((RecipeListAdapter.ViewHolder) holder).ivImage);
+                                } else {
+                                    adapter.notifyItemChanged(index);
+                                }
+                            });
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onError(String errorMessage) {
+                            Log.e("RecipeImage", "[" + index + "] 生成失败: " + recipe.getName() + " - " + errorMessage);
+                            latch.countDown();
+                        }
+                    });
+                    // 真正等待当前图片生成完成，避免并发触发阿里云限流
+                    latch.await(120, TimeUnit.SECONDS);
+                    // 每张完成后额外等待，避免每分钟请求数超限
+                    if (!destroyed && i < dishes.size() - 1) {
+                        try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+                    }
+                } catch (Exception e) {
+                    if (destroyed) return;
+                    Log.e("RecipeImage", "[" + index + "] 异常: " + recipe.getName() + " - " + e.getMessage(), e);
+                }
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        destroyed = true;
+        if (imageExecutor != null && !imageExecutor.isShutdown()) {
+            imageExecutor.shutdownNow();
+        }
+        super.onDestroy();
     }
 
     private void checkFavoriteStatus(String recipeKey) {
@@ -218,6 +368,17 @@ public class RecipeDetailActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             RecipeItem item = items.get(position);
             holder.tvName.setText(item.getName());
+
+            // Load image with Glide
+            if (item.getImagePath() != null && !item.getImagePath().isEmpty()) {
+                Glide.with(RecipeDetailActivity.this)
+                        .load(item.getImagePath())
+                        .placeholder(R.drawable.apic)
+                        .transition(DrawableTransitionOptions.withCrossFade())
+                        .into(holder.ivImage);
+            } else {
+                holder.ivImage.setImageResource(R.drawable.apic);
+            }
 
             // Ingredients summary
             String summary = RecipeItem.toIngredientsSummary(item.getIngredients());

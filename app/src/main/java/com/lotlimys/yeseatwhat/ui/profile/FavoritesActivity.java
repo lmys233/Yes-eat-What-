@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -13,15 +14,19 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.lotlimys.yeseatwhat.App;
 import com.lotlimys.yeseatwhat.R;
 import com.lotlimys.yeseatwhat.data.db.entity.GeneratedRecipe;
 import com.lotlimys.yeseatwhat.data.db.entity.HistoryWithRecipe;
 import com.lotlimys.yeseatwhat.data.repository.HistoryRepository;
 import com.lotlimys.yeseatwhat.model.RecipeItem;
+import com.lotlimys.yeseatwhat.ui.detail.RecipeDetailActivity;
 import com.lotlimys.yeseatwhat.util.DateUtils;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -86,7 +91,7 @@ public class FavoritesActivity extends AppCompatActivity {
 
         historyRepository.addOrUpdate(recipe.getRecipeKey());
 
-        Intent intent = new Intent(this, com.lotlimys.yeseatwhat.ui.detail.RecipeDetailActivity.class);
+        Intent intent = new Intent(this, RecipeDetailActivity.class);
         intent.putExtra("dishes", gson.toJson(singleItemList));
         intent.putExtra("direct_detail", true);
         startActivity(intent);
@@ -112,10 +117,21 @@ public class FavoritesActivity extends AppCompatActivity {
 
             holder.tvName.setText(recipe.getName());
 
+            // Load image with Glide
+            String imagePath = recipe.getImagePath();
+            if (imagePath != null && !imagePath.isEmpty()) {
+                Glide.with(FavoritesActivity.this)
+                        .load(imagePath)
+                        .placeholder(R.drawable.apic)
+                        .into(holder.ivImage);
+            } else {
+                holder.ivImage.setImageResource(R.drawable.apic);
+            }
+
             // Ingredients summary
             String ingredients = "";
             try {
-                java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<RecipeItem.IngredientAmount>>() {}.getType();
+                Type listType = new TypeToken<List<RecipeItem.IngredientAmount>>() {}.getType();
                 List<RecipeItem.IngredientAmount> list = gson.fromJson(recipe.getIngredientsJson(), listType);
                 ingredients = RecipeItem.toIngredientsSummary(list);
             } catch (Exception ignored) {}
@@ -136,10 +152,12 @@ public class FavoritesActivity extends AppCompatActivity {
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {
+            ImageView ivImage;
             TextView tvName, tvIngredients, tvCookingMethod, tvSubTime;
 
             ViewHolder(View view) {
                 super(view);
+                ivImage = view.findViewById(R.id.iv_recipe_image);
                 tvName = view.findViewById(R.id.tv_recipe_name);
                 tvIngredients = view.findViewById(R.id.tv_recipe_ingredients);
                 tvCookingMethod = view.findViewById(R.id.tv_recipe_cooking_method);

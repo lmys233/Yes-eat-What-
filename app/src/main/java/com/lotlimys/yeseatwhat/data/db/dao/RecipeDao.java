@@ -17,6 +17,9 @@ public interface RecipeDao {
     @Query("SELECT * FROM generated_recipe WHERE recipe_key = :recipeKey")
     GeneratedRecipe getByKey(String recipeKey);
 
+    @Query("UPDATE generated_recipe SET image_path = :imagePath WHERE recipe_key = :recipeKey")
+    void updateImagePath(String recipeKey, String imagePath);
+
     @Query("SELECT * FROM generated_recipe ORDER BY created_at DESC")
     List<GeneratedRecipe> getAllByTimeDesc();
 }

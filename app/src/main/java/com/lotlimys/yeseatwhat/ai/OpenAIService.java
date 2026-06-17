@@ -1,23 +1,27 @@
 package com.lotlimys.yeseatwhat.ai;
 
+import android.util.Log;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.lotlimys.yeseatwhat.data.preference.AppPreferences;
-import com.lotlimys.yeseatwhat.model.RecipeItem;
-import com.lotlimys.yeseatwhat.util.Constants;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-
+import com.google.gson.reflect.TypeToken;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+
+import com.lotlimys.yeseatwhat.data.preference.AppPreferences;
+import com.lotlimys.yeseatwhat.model.RecipeItem;
+import com.lotlimys.yeseatwhat.util.Constants;
+
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 public class OpenAIService implements AIService {
 
@@ -44,12 +48,12 @@ public class OpenAIService implements AIService {
     }
 
     @Override
-    public void generateRecipeImage(String dishName, Callback<String> callback) {
+    public void generateRecipeImage(RecipeItem recipe, Callback<String> callback) {
         new Thread(() -> {
             try {
                 JsonObject body = new JsonObject();
                 body.addProperty("model", Constants.DEFAULT_IMAGE_MODEL);
-                body.addProperty("prompt", "Cartoon style food illustration of " + dishName
+                body.addProperty("prompt", "Cartoon style food illustration of " + recipe.getName()
                         + ", vibrant colors, cute style, white background, professional food photography");
                 body.addProperty("n", 1);
                 body.addProperty("size", "1024x1024");
@@ -85,7 +89,7 @@ public class OpenAIService implements AIService {
                 + "最多推荐3道菜。";
         String userPrompt = "请推荐" + region + "的特色菜品，共3道。";
         sendChatCompletion(systemPrompt, userPrompt, callback,
-                new com.google.gson.reflect.TypeToken<List<RecipeItem>>(){}.getType());
+                new TypeToken<List<RecipeItem>>(){}.getType());
     }
 
     @Override
@@ -95,7 +99,7 @@ public class OpenAIService implements AIService {
                 + "difficulty(简单/中等/困难), calories, cuisine_type, region, meal_type。";
         String userPrompt = "食材IDs: " + gson.toJson(ingredientIds) + "，请随机生成3道菜品。";
         sendChatCompletion(systemPrompt, userPrompt, callback,
-                new com.google.gson.reflect.TypeToken<List<RecipeItem>>(){}.getType());
+                new TypeToken<List<RecipeItem>>(){}.getType());
     }
 
     @Override
@@ -128,6 +132,48 @@ public class OpenAIService implements AIService {
                         ? request.getPreviousPortrait() : "无");
 
         sendChatCompletionRaw(systemPrompt.toString(), userPrompt.toString(), callback);
+    }
+
+    @Override
+    public void generateIngredientImage(String ingredientName, String categoryName, Callback<String> callback) {
+        new Thread(() -> {
+            try {
+                JsonObject body = new JsonObject();
+                body.addProperty("model", Constants.DEFAULT_IMAGE_MODEL);
+                body.addProperty("prompt", "Pixel art game item icon of " + ingredientName
+                        + ", category: " + (categoryName != null ? categoryName : "")
+                        + ", simple retro sprite style, pure white background (#FFFFFF),"
+                        + " absolutely NO shadows, NO gradients, NO black borders or outlines around the ingredient,"
+                        + " the ingredient must not have any dark edge outline,"
+                        + " everything except the ingredient must be pure white,"
+                        + " low resolution pixel art, centered single item, no text or decorations");
+                body.addProperty("n", 1);
+                body.addProperty("size", "1024x1024");
+
+                String json = gson.toJson(body);
+                String apiUrl = preferences.getApiUrl().replace("/chat/completions", "")
+                        .replace("/v1", "") + "/v1/images/generations";
+                Log.d("OpenAIImg", "请求URL: " + apiUrl);
+                Log.d("OpenAIImg", "请求body: " + json);
+
+                Request httpRequest = buildRequest(apiUrl, json);
+                try (Response response = client.newCall(httpRequest).execute()) {
+                    String respBodyStr = response.body() != null ? response.body().string() : "";
+                    Log.d("OpenAIImg", "响应 code=" + response.code() + " body=" + respBodyStr);
+                    if (!response.isSuccessful()) {
+                        callback.onError("食材图标生成失败: " + response.code() + " " + respBodyStr);
+                        return;
+                    }
+                    JsonObject respJson = gson.fromJson(respBodyStr, JsonObject.class);
+                    String imageUrl = respJson.getAsJsonArray("data")
+                            .get(0).getAsJsonObject()
+                            .get("url").getAsString();
+                    callback.onSuccess(imageUrl);
+                }
+            } catch (Exception e) {
+                callback.onError("食材图标生成失败: " + e.getMessage());
+            }
+        }).start();
     }
 
     public static String buildRecipeSystemPrompt(RecipeRequest request) {
@@ -185,6 +231,14 @@ public class OpenAIService implements AIService {
         }
         sb.append("要求：优先推荐有群众基础的知名菜品。如果用户选材组合确实没有足够的知名菜品，")
                 .append("允许末尾补充少量合理的创新搭配，但主体必须是真实存在的菜品。");
+
+        // Diet goal
+        if (request.getDietGoal() != null && !request.getDietGoal().isEmpty()) {
+            sb.append("\n\n## 用户的饮食改变目标\n")
+                    .append(request.getDietGoal())
+                    .append("\n请优先推荐符合这个目标的菜品，帮助用户达成饮食改变计划。");
+        }
+
         return sb.toString();
     }
 
@@ -230,7 +284,7 @@ public class OpenAIService implements AIService {
     }
 
     private <T> void sendChatCompletion(String systemPrompt, String userPrompt,
-                                         Callback<T> callback, java.lang.reflect.Type type) {
+                                         Callback<T> callback, Type type) {
         new Thread(() -> {
             try {
                 String content = executeChatRequest(systemPrompt, userPrompt);

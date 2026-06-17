@@ -60,7 +60,8 @@
                     android:id="@+id/iv_recipe_detail_image"
                     android:layout_width="match_parent"
                     android:layout_height="220dp"
-                    android:scaleType="centerCrop"
+                    android:scaleType="fitCenter"
+                    android:background="@color/image_placeholder_bg"
                     android:src="@drawable/apic" />
 
                 <LinearLayout

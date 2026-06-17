@@ -32,4 +32,7 @@ public interface IngredientDao {
 
     @Delete
     void deleteCustom(CustomIngredient ingredient);
+
+    @Query("DELETE FROM custom_ingredient WHERE name = :name")
+    void deleteCustomByName(String name);
 }

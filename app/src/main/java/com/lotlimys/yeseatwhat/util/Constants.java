@@ -53,5 +53,6 @@ public class Constants {
     // Portrait
     public static final String KEY_PORTRAIT_CONTENT = "portrait_content";
     public static final String KEY_PORTRAIT_GENERATED_AT = "portrait_generated_at";
+    public static final String KEY_DIET_GOAL = "diet_goal";
     public static final long PORTRAIT_REGEN_INTERVAL_MS = 3L * 86400000L; // 3 days
 }

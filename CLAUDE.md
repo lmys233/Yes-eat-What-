@@ -15,3 +15,23 @@
 4. **与现有逻辑冲突** — 用户的需求和已有代码的行为不一致，指出矛盾
 
 反问的原则：用 1-2 句话 + 几个明确选项，不要长篇大论。
+
+## 代码风格
+
+> 通用编码规范已定义在 `~/.claude/rules/common/coding-style.md`
+> Java 规范在 `~/.claude/rules/java/coding-style.md`
+> Android 规范在 `~/.claude/rules/android/coding-style.md`
+> 这些规则在所有项目中自动生效。
+
+### 项目特有参考
+
+写新文件之前，先找项目中同类的现有文件读 30 秒对齐风格，不要凭空创造新模式。
+
+| 你要写什么 | 先看什么 |
+|-----------|---------|
+| 网络请求类 / AI 服务 | `DashScopeService.java` / `OpenAIService.java` |
+| 工具类 | `util/` 下现有文件（如 `DateUtils.java`） |
+| Activity | 其他 Activity（`RecipeDetailActivity.java`、`HistoryActivity.java`） |
+| Fragment | `OrderFragment.java` / `ProfileFragment.java` |
+| RecyclerView Adapter | `RecipeDetailActivity` 内部的 `RecipeListAdapter` |
+| Layout XML | 同类型 layout（`activity_*.xml`、`item_*.xml`） |

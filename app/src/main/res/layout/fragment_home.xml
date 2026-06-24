@@ -1,12 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="48dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:text="首页"
-        android:textSize="18sp" />
-</FrameLayout>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_chat_generate"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="对话生成菜品"
+        android:textSize="16sp"
+        app:cornerRadius="12dp"
+        app:icon="@drawable/ic_chat"
+        app:iconGravity="textStart"
+        app:iconSize="24dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="20dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_image_generate"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="识图生成食谱"
+        android:textSize="16sp"
+        app:backgroundTint="@color/theme_pastel_green"
+        app:cornerRadius="12dp"
+        app:icon="@drawable/ic_camera"
+        app:iconGravity="textStart"
+        app:iconSize="24dp" />
+
+</LinearLayout>

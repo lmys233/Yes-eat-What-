@@ -38,12 +38,15 @@ public class RecipeRequest {
     @SerializedName("diet_goal")
     private String dietGoal;
 
+    @SerializedName("dining_scene")
+    private String diningScene;
+
     public RecipeRequest(List<Integer> ingredientIds, List<String> ingredientNames,
                          String cuisineType, String mealType,
                          List<String> dietaryRestrictions, List<String> allergies,
                          List<String> others, String selfDescription,
                          List<String> cookingMethods, String preferences,
-                         String dietGoal) {
+                         String dietGoal, String diningScene) {
         this.ingredientIds = ingredientIds;
         this.ingredientNames = ingredientNames;
         this.cuisineType = cuisineType;
@@ -55,6 +58,7 @@ public class RecipeRequest {
         this.cookingMethods = cookingMethods;
         this.preferences = preferences;
         this.dietGoal = dietGoal;
+        this.diningScene = diningScene;
     }
 
     public List<String> getCookingMethods() { return cookingMethods; }
@@ -80,4 +84,6 @@ public class RecipeRequest {
     public void setSelfDescription(String selfDescription) { this.selfDescription = selfDescription; }
     public String getDietGoal() { return dietGoal; }
     public void setDietGoal(String dietGoal) { this.dietGoal = dietGoal; }
+    public String getDiningScene() { return diningScene; }
+    public void setDiningScene(String diningScene) { this.diningScene = diningScene; }
 }

@@ -41,6 +41,16 @@
             android:maxLines="1"
             android:ellipsize="end" />
 
+        <TextView
+            android:id="@+id/tv_dining_scene"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
         <!-- Bottom row: dish count + time -->
         <LinearLayout
             android:layout_width="match_parent"

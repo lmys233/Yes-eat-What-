@@ -90,6 +90,15 @@
                         android:visibility="gone" />
 
                     <TextView
+                        android:id="@+id/tv_detail_dining_scene"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textSize="14sp"
+                        android:textColor="#444444"
+                        android:visibility="gone" />
+
+                    <TextView
                         android:id="@+id/tv_detail_preferences"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

@@ -82,6 +82,7 @@ public class OrderFragment extends Fragment {
     private List<CuisineItem> cookingMethods = new ArrayList<>();
     private List<CuisineItem> cuisines = new ArrayList<>();
     private List<CuisineItem> mealTypeItems = new ArrayList<>();
+    private List<CuisineItem> sceneItems = new ArrayList<>();
     private List<CategoryItem> cuisineCategories = new ArrayList<>();
     private List<String> selectedCookingMethods = new ArrayList<>();
     private List<String> selectedCuisines = new ArrayList<>();
@@ -95,7 +96,7 @@ public class OrderFragment extends Fragment {
     private long currentGenerationRecordId;
 
     // Mode
-    private enum Mode { INGREDIENT, COOKING_METHOD, CUISINE, MEAL_TYPE }
+    private enum Mode { INGREDIENT, COOKING_METHOD, CUISINE, MEAL_TYPE, SCENE }
     private Mode currentMode = Mode.INGREDIENT;
 
     // Existing fields for the original preferences dialog
@@ -149,12 +150,20 @@ public class OrderFragment extends Fragment {
         initCuisines();
         initCuisineCategories();
         initMealTypes();
+        initScenes();
     }
 
     private void initMealTypes() {
         String[] names = {"早餐", "午餐", "晚餐", "宵夜", "下午茶"};
         for (int i = 0; i < names.length; i++) {
             mealTypeItems.add(new CuisineItem(i, names[i], "meal_" + i, -1, false, "meal_type"));
+        }
+    }
+
+    private void initScenes() {
+        String[] names = {"家常便饭", "朋友聚餐", "烛光晚餐", "宴请宾客", "野餐", "减脂餐", "加班简餐", "工作快餐", "观赛搭子"};
+        for (int i = 0; i < names.length; i++) {
+            sceneItems.add(new CuisineItem(i, names[i], "scene_" + i, -1, false, "scene"));
         }
     }
 
@@ -248,6 +257,10 @@ public class OrderFragment extends Fragment {
             closeSpeedDial();
             switchToMode(Mode.MEAL_TYPE);
         });
+        addToolButton(inflater, "食用场景", R.drawable.ic_scene, () -> {
+            closeSpeedDial();
+            switchToMode(Mode.SCENE);
+        });
     }
 
     private void addToolButton(LayoutInflater inflater, String name, int iconRes, Runnable action) {
@@ -314,6 +327,15 @@ public class OrderFragment extends Fragment {
                 tvSelectedCount.setText("");
                 setGridSpanCount(3);
                 adapter.setItems(new ArrayList<>(mealTypeItems));
+                rvIngredients.setVisibility(View.VISIBLE);
+                break;
+
+            case SCENE:
+                tvOrderTitle.setText("食用场景");
+                llCategoryTabs.removeAllViews();
+                tvSelectedCount.setText("");
+                setGridSpanCount(3);
+                adapter.setItems(new ArrayList<>(sceneItems));
                 rvIngredients.setVisibility(View.VISIBLE);
                 break;
         }
@@ -432,7 +454,8 @@ public class OrderFragment extends Fragment {
                 break;
 
             case COOKING_METHOD:
-            case MEAL_TYPE: {
+            case MEAL_TYPE:
+            case SCENE: {
                 // Multi-select toggle
                 item.setSelected(!item.isSelected());
                 adapter.notifyItemChanged(position);
@@ -908,6 +931,14 @@ public class OrderFragment extends Fragment {
             }
         }
 
+        StringBuilder sbScenes = new StringBuilder();
+        for (CuisineItem s : sceneItems) {
+            if (s.isSelected()) {
+                if (sbScenes.length() > 0) sbScenes.append("、");
+                sbScenes.append(s.getName());
+            }
+        }
+
         // Build dialog layout
         float density = getResources().getDisplayMetrics().density;
         int pad16 = (int) (16 * density);
@@ -946,6 +977,7 @@ public class OrderFragment extends Fragment {
         addRow.accept("烹饪方式：", sbMethods.toString());
         addRow.accept("餐类：", sbMealTypes.toString());
         addRow.accept("菜系：", sbCuisines.toString());
+        addRow.accept("场景：", sbScenes.toString());
         addRow.accept("偏好：", preferenceText.isEmpty() ? null : preferenceText);
         addRow.accept("忌口：", allergyText.isEmpty() ? null : allergyText);
 
@@ -1020,6 +1052,16 @@ public class OrderFragment extends Fragment {
         }
         String cuisineStr = cuisineBuilder.toString();
 
+        // Collect scene selections
+        StringBuilder sceneBuilder = new StringBuilder();
+        for (CuisineItem s : sceneItems) {
+            if (s.isSelected()) {
+                if (sceneBuilder.length() > 0) sceneBuilder.append("、");
+                sceneBuilder.append(s.getName());
+            }
+        }
+        String sceneStr = sceneBuilder.toString();
+
         // Build preference text from tools
         StringBuilder prefBuilder = new StringBuilder();
         if (!preferenceText.isEmpty()) {
@@ -1037,7 +1079,8 @@ public class OrderFragment extends Fragment {
                 new ArrayList<>(), "",
                 selectedCookingMethods,
                 prefBuilder.toString(),
-                prefs.getDietGoal()
+                prefs.getDietGoal(),
+                sceneStr
         );
 
         // Save generation record before AI request
@@ -1059,6 +1102,7 @@ public class OrderFragment extends Fragment {
                 cuisineStr,
                 mealTypeStr,
                 prefText,
+                sceneStr,
                 fullPrompt,
                 0, // dishCount unknown yet
                 now, // createdAt

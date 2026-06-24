@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFF5F5F5">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/white"
+        app:title="AI 对话"
+        app:titleTextColor="@color/black"
+        app:navigationIcon="@drawable/ic_back_arrow" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <!-- Sidebar -->
+        <LinearLayout
+            android:id="@+id/ll_sidebar"
+            android:layout_width="200dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="@color/white"
+            android:elevation="2dp"
+            android:visibility="gone">
+
+            <!-- Header row: title + close button -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="14dp"
+                android:background="#FFF8F8F8">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="对话记录"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#333333" />
+
+                <TextView
+                    android:id="@+id/btn_collapse_sidebar"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:gravity="center"
+                    android:text="◀"
+                    android:textSize="12sp"
+                    android:textColor="#999999"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="@drawable/bg_sidebar_toggle" />
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_conversations"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_new_chat"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="新建对话"
+                android:textSize="13sp"
+                app:cornerRadius="0dp"
+                app:icon="@drawable/ic_add"
+                app:iconGravity="textStart"
+                app:iconSize="18dp" />
+        </LinearLayout>
+
+        <!-- Sidebar expand button (visible when sidebar is collapsed) -->
+        <TextView
+            android:id="@+id/btn_expand_sidebar"
+            android:layout_width="28dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="▶"
+            android:textSize="14sp"
+            android:textColor="#999999"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/bg_sidebar_toggle" />
+
+        <!-- Right: Chat Area -->
+        <LinearLayout
+            android:id="@+id/ll_chat_area"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <!-- Messages -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_messages"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:padding="12dp"
+                android:clipToPadding="false" />
+
+            <!-- Empty state -->
+            <TextView
+                android:id="@+id/tv_empty_hint"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="选择或新建一个对话，开始和 AI 聊菜谱吧"
+                android:textSize="15sp"
+                android:textColor="#999999"
+                android:visibility="gone" />
+
+            <!-- Input Area -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@color/white"
+                android:padding="8dp"
+                android:elevation="4dp">
+
+                <EditText
+                    android:id="@+id/et_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="输入你的需求和食材..."
+                    android:minLines="1"
+                    android:maxLines="4"
+                    android:inputType="textMultiLine"
+                    android:background="@drawable/bg_chat_input"
+                    android:padding="12dp"
+                    android:textSize="14sp"
+                    android:layout_marginEnd="8dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_send"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:text="发送"
+                    android:textSize="12sp"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

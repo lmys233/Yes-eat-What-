@@ -111,6 +111,15 @@ public class GenerationHistoryActivity extends AppCompatActivity {
                 holder.tvCookingMethods.setVisibility(View.GONE);
             }
 
+            // Dining scene
+            String scene = record.getDiningScene();
+            if (scene != null && !scene.isEmpty()) {
+                holder.tvDiningScene.setVisibility(View.VISIBLE);
+                holder.tvDiningScene.setText("场景：" + scene);
+            } else {
+                holder.tvDiningScene.setVisibility(View.GONE);
+            }
+
             // Dish count
             if (record.isSuccess() && record.getDishCount() > 0) {
                 holder.tvDishCount.setText("生成 " + record.getDishCount() + " 道菜");
@@ -135,12 +144,13 @@ public class GenerationHistoryActivity extends AppCompatActivity {
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {
-            TextView tvIngredients, tvCookingMethods, tvDishCount, tvCreatedTime;
+            TextView tvIngredients, tvCookingMethods, tvDiningScene, tvDishCount, tvCreatedTime;
 
             ViewHolder(View view) {
                 super(view);
                 tvIngredients = view.findViewById(R.id.tv_ingredients);
                 tvCookingMethods = view.findViewById(R.id.tv_cooking_methods);
+                tvDiningScene = view.findViewById(R.id.tv_dining_scene);
                 tvDishCount = view.findViewById(R.id.tv_dish_count);
                 tvCreatedTime = view.findViewById(R.id.tv_created_time);
             }

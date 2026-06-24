@@ -56,6 +56,8 @@ public class GenerationDetailActivity extends AppCompatActivity {
                 record.getCuisines(), "菜系：" + record.getCuisines());
         setTextOrGone(R.id.tv_detail_meal_types,
                 record.getMealTypes(), "餐类：" + record.getMealTypes());
+        setTextOrGone(R.id.tv_detail_dining_scene,
+                record.getDiningScene(), "场景：" + record.getDiningScene());
         setTextOrGone(R.id.tv_detail_preferences,
                 record.getPreferences(), "偏好/忌口：" + record.getPreferences());
 

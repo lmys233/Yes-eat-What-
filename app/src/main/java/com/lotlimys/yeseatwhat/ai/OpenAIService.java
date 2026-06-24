@@ -226,6 +226,10 @@ public class OpenAIService implements AIService {
         if (request.getMealType() != null && !request.getMealType().isEmpty()) {
             sb.append("## 餐型\n").append(request.getMealType()).append("\n\n");
         }
+        if (request.getDiningScene() != null && !request.getDiningScene().isEmpty()) {
+            sb.append("## 食用场景\n").append(request.getDiningScene())
+                    .append("\n（请根据该场景推荐合适的菜品，比如\"朋友聚餐\"推荐适合分享的大份菜品，\"减脂餐\"推荐低卡健康菜品）\n\n");
+        }
         if (request.getPreferences() != null && !request.getPreferences().isEmpty()) {
             sb.append("## 用户偏好\n").append(request.getPreferences()).append("\n\n");
         }
@@ -321,6 +325,53 @@ public class OpenAIService implements AIService {
             }
         }
         return url;
+    }
+
+    @Override
+    public void chat(List<ChatMessage> history, Callback<String> callback) {
+        new Thread(() -> {
+            try {
+                String result = executeChatRequestWithMessages(history);
+                callback.onSuccess(result);
+            } catch (Exception e) {
+                callback.onError("请求失败: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private String executeChatRequestWithMessages(List<ChatMessage> history) throws IOException {
+        JsonObject body = new JsonObject();
+        body.addProperty("model", preferences.getModel());
+
+        JsonArray messages = new JsonArray();
+
+        // System prompt
+        JsonObject systemMsg = new JsonObject();
+        systemMsg.addProperty("role", "system");
+        systemMsg.addProperty("content", "你是一个智能助手，可以回答各种问题。请用中文回复，回答简洁有帮助。");
+        messages.add(systemMsg);
+
+        // History messages
+        for (ChatMessage msg : history) {
+            JsonObject jsonMsg = new JsonObject();
+            jsonMsg.addProperty("role", msg.getRole());
+            jsonMsg.addProperty("content", msg.getContent());
+            messages.add(jsonMsg);
+        }
+
+        body.add("messages", messages);
+
+        String json = gson.toJson(body);
+        String apiUrl = buildApiUrl();
+
+        Request httpRequest = buildRequest(apiUrl, json);
+        try (Response response = client.newCall(httpRequest).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("API请求失败: " + response.code());
+            }
+            String respBody = response.body().string();
+            return extractContent(respBody);
+        }
     }
 
     private Request buildRequest(String url, String json) {

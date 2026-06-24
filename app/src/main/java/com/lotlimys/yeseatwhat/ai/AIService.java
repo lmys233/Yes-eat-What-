@@ -17,6 +17,21 @@ public interface AIService {
 
     void generateIngredientImage(String ingredientName, String categoryName, Callback<String> callback);
 
+    void chat(List<ChatMessage> history, Callback<String> callback);
+
+    class ChatMessage {
+        private final String role;
+        private final String content;
+
+        public ChatMessage(String role, String content) {
+            this.role = role;
+            this.content = content;
+        }
+
+        public String getRole() { return role; }
+        public String getContent() { return content; }
+    }
+
     interface Callback<T> {
         void onSuccess(T result);
         void onError(String errorMessage);

@@ -9,6 +9,7 @@ import androidx.room.RoomDatabase;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import com.lotlimys.yeseatwhat.data.db.dao.CategoryDao;
+import com.lotlimys.yeseatwhat.data.db.dao.ChatMessageDao;
 import com.lotlimys.yeseatwhat.data.db.dao.FavoriteDao;
 import com.lotlimys.yeseatwhat.data.db.dao.GenerationRecordDao;
 import com.lotlimys.yeseatwhat.data.db.dao.HistoryDao;
@@ -20,6 +21,7 @@ import com.lotlimys.yeseatwhat.data.db.entity.Favorite;
 import com.lotlimys.yeseatwhat.data.db.entity.GeneratedRecipe;
 import com.lotlimys.yeseatwhat.data.db.entity.GenerationRecord;
 import com.lotlimys.yeseatwhat.data.db.entity.History;
+import com.lotlimys.yeseatwhat.data.db.entity.MsgEntity;
 import com.lotlimys.yeseatwhat.data.db.entity.SystemIngredient;
 import com.lotlimys.yeseatwhat.data.db.seed.DataSeeder;
 
@@ -33,8 +35,9 @@ import java.util.concurrent.Executors;
         GeneratedRecipe.class,
         Favorite.class,
         History.class,
-        GenerationRecord.class
-}, version = 3, exportSchema = false)
+        GenerationRecord.class,
+        MsgEntity.class
+}, version = 5, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     private static final String DB_NAME = "yeseatwhat.db";
@@ -46,6 +49,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract FavoriteDao favoriteDao();
     public abstract HistoryDao historyDao();
     public abstract GenerationRecordDao generationRecordDao();
+    public abstract ChatMessageDao chatMessageDao();
 
     private static final ExecutorService databaseWriteExecutor = Executors.newSingleThreadExecutor();
     private static volatile boolean seedChecked = false;

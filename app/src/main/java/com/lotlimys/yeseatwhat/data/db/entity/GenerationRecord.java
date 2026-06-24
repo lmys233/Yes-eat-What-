@@ -24,6 +24,9 @@ public class GenerationRecord {
     @ColumnInfo(name = "preferences")
     private String preferences;
 
+    @ColumnInfo(name = "dining_scene")
+    private String diningScene;
+
     @ColumnInfo(name = "prompt_text")
     private String promptText;
 
@@ -41,6 +44,7 @@ public class GenerationRecord {
 
     public GenerationRecord(long id, String ingredients, String cookingMethods,
                             String cuisines, String mealTypes, String preferences,
+                            String diningScene,
                             String promptText, int dishCount, long createdAt,
                             long completedAt, boolean success) {
         this.id = id;
@@ -49,6 +53,7 @@ public class GenerationRecord {
         this.cuisines = cuisines;
         this.mealTypes = mealTypes;
         this.preferences = preferences;
+        this.diningScene = diningScene;
         this.promptText = promptText;
         this.dishCount = dishCount;
         this.createdAt = createdAt;
@@ -68,6 +73,8 @@ public class GenerationRecord {
     public void setMealTypes(String mealTypes) { this.mealTypes = mealTypes; }
     public String getPreferences() { return preferences; }
     public void setPreferences(String preferences) { this.preferences = preferences; }
+    public String getDiningScene() { return diningScene; }
+    public void setDiningScene(String diningScene) { this.diningScene = diningScene; }
     public String getPromptText() { return promptText; }
     public void setPromptText(String promptText) { this.promptText = promptText; }
     public int getDishCount() { return dishCount; }
